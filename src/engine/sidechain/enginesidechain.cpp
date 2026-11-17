@@ -13,6 +13,7 @@
 #include "engine/engine.h"
 #include "engine/sidechain/sidechainworker.h"
 #include "moc_enginesidechain.cpp"
+#include "util/compatibility/qmutex.h"
 #include "util/counter.h"
 #include "util/event.h"
 #include "util/sample.h"
@@ -98,13 +99,16 @@ void EngineSideChain::run() {
     QThread::currentThread()->setObjectName(QString("EngineSideChain %1").arg(++id));
     static const QString tag("EngineSideChain");
     Event::start(tag);
-    while (!m_bStopThread) {
-        // Sleep until samples are available.
-        m_waitLock.lock();
-
-        Event::end(tag);
-        m_waitForSamples.wait(&m_waitLock);
-        m_waitLock.unlock();
+    bool stopThread = false;
+    while (!stopThread) {
+        {
+            const auto lock = lockMutex(&m_waitLock);
+            Event::end(tag);
+            if (!m_bStopThread) {
+                m_waitForSamples.wait(&m_waitLock);
+            }
+            stopThread = m_bStopThread;
+        }
         Event::start(tag);
 
         int samples_read;
@@ -115,11 +119,6 @@ void EngineSideChain::run() {
             foreach (SideChainWorker* pWorker, m_workers) {
                 pWorker->process(m_pWorkBuffer, samples_read);
             }
-        }
-
-        // Check to see if we're supposed to exit/stop this thread.
-        if (m_bStopThread) {
-            return;
         }
     }
 }

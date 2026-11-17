@@ -39,8 +39,8 @@ class EngineSideChain : public QThread, public AudioDestination {
     void run() override;
 
     UserSettingsPointer m_pConfig;
-    // Indicates that the thread should exit.
-    volatile bool m_bStopThread;
+    // Indicates that the thread should exit. Protected by m_waitLock.
+    bool m_bStopThread;
 
     FIFO<CSAMPLE> m_sampleFifo;
     CSAMPLE* m_pWorkBuffer;
